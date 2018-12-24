@@ -22,7 +22,8 @@ methodDeclaration :	'public' type ID '(' ( type ID ( ',' type ID )* )? ')'
 					;
 		
 type : 		
-		'int' '[' ']'
+		'int' '[' ']''[' ']'
+		|   'int' '[' ']'
 		|	'boolean'
 		|	'int'
 		|	ID
