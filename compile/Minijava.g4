@@ -3,54 +3,60 @@
  */
 grammar Minijava;
 
-prog : MainClass ( ClassDeclaration )* ;
+prog : mainClass ( classDeclaration )*;
 
-MainClass : 'class' ID 
-			'{' 'public' 'static' 'void' 'main' '(' 'String' '[' ']' ID ')'
-			'{' Statement '}' 
-			'}';
+mainClass : 		'class' ID 
+					'{' 'public' 'static' 'void' 'main' '(' 'String' '[' ']' ID ')'
+					'{' statement '}' 
+					'}'
+					;
 
-ClassDeclaration : 'class' ID ( 'extends' ID )? '{' ( VarDeclaration )* ( MethodDeclaration )* '}';
+classDeclaration : 	'class' ID ( 'extends' ID )? '{' ( varDeclaration )* ( methodDeclaration )* '}'
+					;
 
-VarDeclaration	:	Type ID ';';
+varDeclaration	:	type ID ';'
+					;
 
-MethodDeclaration : 'public' Type ID '(' ( Type ID ( ',' Type ID )* )? ')' 
-					'{' ( VarDeclaration )* ( Statement )* 'return' Expression ';' '}'
+methodDeclaration :	'public' type ID '(' ( type ID ( ',' type ID )* )? ')' 
+					'{' ( varDeclaration )* ( statement )* 'return' expr ';' '}'
 					;
 		
-Type : 		
+type : 		
 		'int' '[' ']'
 		|	'boolean'
 		|	'int'
 		|	ID
 		;
 		
-Statement	: 
-			'{' ( Statement )* '}'
-		|	'if' '(' Expression ')' Statement 'else' Statement
-		|	'while' '(' Expression ')' Statement
-		|	'System.out.println' '(' Expression ')' ';'
-		|	ID '=' Expression ';'
-		|	ID '[' Expression ']' '=' Expression ';'
+statement	: 
+			'{' ( statement )* '}'
+		|	'if' '(' expr ')' statement 'else' statement
+		|	'while' '(' expr ')' statement
+		|	'System.out.println' '(' expr ')' ';'
+		|	ID '=' expr ';'
+		|	ID '[' expr ']' '=' expr ';'
 		;
 		
-Expression	:	
-			Expression ( '&&' | '<' | '+' | '-' | '*' ) Expression
-		|	Expression '[' Expression ']'
-		|	Expression '.' 'length'
-		|	Expression '.' ID '(' ( Expression ( ',' Expression )* )? ')'
+expr	:	
+			expr OP expr
+		|	expr '[' expr ']'
+		|	expr '.length'
+		|	expr '.' ID '(' ( expr ( ',' expr )* )? ')'
 		|	INT
 		|	'true'
 		|	'false'
 		|	ID
 		|	'this'
-		|	'new' 'int' '[' Expression ']'
+		|	'new' 'int' '[' expr ']'
 		|	'new' ID '(' ')'
-		|	'!' Expression
-		|	'(' Expression ')'
+		|	'!' expr
+		|	'(' expr ')'
 		;
-
-ID	:	[a-zA-Z_][a-zA-Z_0-9]*;	// identifier
-INT	:	[0-9]+;					// integer
-NOTE:   '//' .*? '\n' ->skip ;	//notes
-WS  :   [ \t\r\n]+ -> skip ; 	// skip spaces, tabs, newlines
+		
+//lexical issues
+ID	:	[a-zA-Z_][a-zA-Z0-9_]*;	  		//identifier
+INT	:	[0-9]+;							// integer
+OP	:	'&&' | '<' | '+' | '-' | '*' ;	//binary_operator
+COMMENT_LINE:   '//' .*? '\n' ->skip ;	//comment_line
+COMMENT:   '/*' .*? '*/' ->skip ;		//comment
+WS  :   [ \t\r\n]+ -> skip ; 			// skip spaces, tabs, newlines
