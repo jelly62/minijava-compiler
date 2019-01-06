@@ -1,22 +1,23 @@
-/**
- * Define a grammar called mini_java
- */
 grammar Minijava;
 @header{
 	import java.util.*;
 }
+
 @parser::members{
-	//error detections
-	//
-	public enum Scope{MEMBER,FUNC}; 
+	public enum Scope{MEMBER,FUNC};   //变量的作用域
+	
+	//判断某个id是否和关键字重合了
 	public static boolean isKeyWord(String id)
 	{
 		List<String> keys = new ArrayList<String>();
 		keys.add("int");
+		keys.add("boolean");
 		keys.add("void");
 		keys.add("if");
 		keys.add("while");
 		keys.add("else");
+		keys.add("public");
+		keys.add("protected");
 		keys.add("default");
 		keys.add("private");
 		keys.add("extends");
@@ -24,26 +25,124 @@ grammar Minijava;
 		keys.add("return");
 		keys.add("true");
 		keys.add("false");
+		keys.add("this");
+		keys.add("super");
 		return keys.contains(id);
+	}
+	
+	//查找某个类对象,如果不存在的话返回NULL
+	public static Class_declContext findClass(ProgContext prog, String class_name){
+		Class_declContext v =null;
+		List<Class_declContext> class_list = prog.class_list;
+		for(Class_declContext e:class_list)	{
+			if (e.name.equals(class_name)){
+				v = e;
+				break;				
+			}			 
+		}
+		return v;
+	}
+	
+	public static boolean isClassExists(ProgContext prog, String class_name){
+		return findClass(prog, class_name) != null;	
+	}
+	
+	//在类的成员列表里找到某个变量名
+	public static Var_declContext findVar(Class_declContext classdecl, String var_name){
+		Var_declContext v =null;
+		List<Var_declContext> var_list = classdecl.var_list;
+		for(Var_declContext e:var_list)	{
+			if (e.name.equals(var_name)){
+				v = e;
+				break;				
+			}			 
+		}
+		return v;
+	}
+	
+	public static boolean isVarExists(Class_declContext obj, String class_name){
+		return findVar(obj, class_name) != null;	
+	}
 		
+	//在函数的变量列表里查找某个变量名
+	public static Var_declContext findVar(Method_declContext func, String var_name){
+		Var_declContext v =null;
+		List<Var_declContext> var_list = func.var_list;
+		for(Var_declContext e:var_list)	{
+			if (e.name.equals(var_name)){
+				v = e;
+				break;				
+			}			 
+		}
+		return v;
+	}
+	
+	public static boolean isVarExists(Method_declContext func, String var_name){
+		return findVar(func,var_name) != null; 
+	}
+	
+	//在函数的参数列表里查找某个变量名
+	public static Var_declContext findPara(Method_declContext func, String para_name){
+		Var_declContext v =null;
+		List<Para_declContext> para_list = func.para_list;
+		for(Para_declContext e: para_list) {
+				ParaDeclContext t = (ParaDeclContext)e;
+				Var_declContext s = t.var;
+				if (s.name.equals(para_name)) {
+					v = s;
+					break;
+				}
+		}			
+		return v;
+	}
+	
+	//判断某个参数名是否已经存在
+	public static boolean isParaExists(Method_declContext func, String para_name){
+		return findPara(func,para_name) != null; 
+	}
+	
+	//判断两个函数声明是否完全一致,也就是名字和参数列表完全一样
+	public static boolean isEqual(Method_declContext fun1,Method_declContext fun2) 
+	{
+		boolean flag = (fun1.name.equals(fun2.name) && fun1.para_list.size()==fun2.para_list.size());
+		if(flag){
+			for(int i=0;i<fun1.para_list.size();++i)
+			{
+				ParaDeclContext t1 = (ParaDeclContext)(fun1.para_list.get(i));
+				ParaDeclContext t2 = (ParaDeclContext)(fun2.para_list.get(i));
+				
+				String type1 = t1.var.type;
+				String type2 = t2.var.type;
+				if (!(type1.equals(type2)))
+				{
+					flag = false;
+					break;
+				}
+			}
+		}
+		return flag;
+	}
+	
+	//判断类中是否已经有相同函数
+	public static boolean isFuncExists(Class_declContext obj,Method_declContext fun) 
+	{
+		boolean flag = false;
+		for(Method_declContext e:obj.func_list)
+		{
+			if (isEqual(e,fun))
+			{
+				flag =true;
+				break;
+			}
+		}
+		return flag;
 	}
 }
-//prog : mainClass  (classDeclaration)* EOF;
 
-//mainClass : 		'class' ID 
-//					'{' 'public' 'static' 'void' 'main' '(' 'String' '[' ']' ID ')'
-//					'{' statement '}' 
-//					'}'
-//					;
-
-//classDeclaration : 	'class' ID ( 'extends' ID )? '{' ( type ID )* ( methodDeclaration )* '}'
-//					;
-
-//varDeclaration	:	type ID ';'
-//					;
 prog
 :   (class_list += class_decl)+
 ;
+
 class_decl
 locals[
 	String name    
@@ -65,8 +164,22 @@ locals[
     
 class_head_name:
 	'class' class_name = ID ( EXTENDS parent_name = ID ) ?
+	{
+		//如果类名已经存在,则给出提示
+		Class_declContext parent =(Class_declContext) ($ctx.getParent());
+		parent.name = $class_name.text;
+		
+		ProgContext prog =(ProgContext) (parent.getParent());
+		
+		if (MinijavaParser.isClassExists(prog,parent.name))
+			System.out.println("class name: " + parent.name + " is refined " + "at line " 
+					+ $class_name.line + ":" + $class_name.pos
+				);
+		else
+			System.out.println("add new class name:" + parent.name + " to class name list");	
+	}
 	;    
-
+    
 var_decl[boolean static_flag,MinijavaParser.Scope var_scope]
 locals
 [
@@ -83,6 +196,66 @@ locals
 		$ctx.scope = $var_scope;
 		$ctx.is_static = $static_flag;
 		
+		ParserRuleContext parent = $ctx.getParent();
+		if (parent instanceof Class_declContext) {  //是类成员变量
+			Class_declContext c =(Class_declContext)(parent);
+			Var_declContext var = MinijavaParser.findVar(c,var_name);
+			
+			if (var != null && var.is_static == $static_flag){
+				System.out.println("var " + $ID.text + " is refined " + "at line " 
+					+ $ID.line + ":" + $ID.pos
+					);
+			}
+			else {
+				System.out.println("add new member var: " + $ctx.name + 
+					" in class " + c.name + " successful"
+				);
+			}
+		}
+		else if (parent instanceof Para_declContext)
+		{ 
+			//如果是函数参数定义
+			
+			//向上定位到函数父节点
+			while (!(parent instanceof Method_declContext) ){
+				parent = parent.getParent();
+			}
+						
+			Method_declContext c =(Method_declContext)parent;
+			
+			if (MinijavaParser.isParaExists(c,var_name))
+			{
+				System.out.println("para " + $ID.text+"in function" + c.name + " is refined " + "at line " 
+					+ $ID.line + ":" + $ID.pos
+					);
+			}
+			else {
+				System.out.println("add new par: " + $ctx.name +" in function " + c.name + " successful");
+			}	
+		}
+		
+		else if (parent instanceof Method_declContext){  
+			//如果是函数中的局部变量
+			Method_declContext c = (Method_declContext)parent;
+			
+			if (MinijavaParser.isVarExists(c,var_name))
+			{
+				System.out.println("var " + $ID.text +" in function" + c.name + " is refined " + "at line " 
+					+ $ID.line + ":" + $ID.pos
+				);
+			}
+			else if (MinijavaParser.isParaExists(c,var_name))
+			{
+				System.out.println("var " + $ID.text +" in function " + c.name 
+				 + " has same name with some para " + "at line "+ $ID.line + ":" + $ID.pos);
+			}
+			else 
+			{
+				System.out.println("add new var: " + $ctx.name 
+					+" in function " + c.name + " successful"
+				);
+			} 
+		}
 	}
 	;
 	
@@ -103,6 +276,21 @@ locals[
 	 )*
 	 (stat_list += stat)*
 	'}'
+	
+	{
+		$ctx.is_static = ($b.text!=null);
+		//检查函数是否可以重载
+		Class_declContext parent =(Class_declContext) ($ctx.getParent());
+		if (MinijavaParser.isFuncExists(parent,$ctx))
+		{
+			System.out.println("overload function:" + $ctx.name + " in class "+ parent.name + "failed"
+			+ " at line " + $LEFT_PARA.line + ":" + $LEFT_PARA.pos	
+			);
+		}
+		else {
+			System.out.println("add function:" + $ctx.name + " to class " + parent.name + " success");		
+		}
+	} 
 	;
 	
 func_head_name:
@@ -123,55 +311,8 @@ para_decl:
 func_type:
 	'void'|var_type
 	;
-//methodDeclaration :	'public' type ID '(' ( type ID ( ',' type ID )* )? ')' 
-//					'{' ( type ID )* ( statement )* 'return' expr ';' '}'
-//					;
 
 
-type : 		
-		   'int' '[' ']'
-		|	'boolean'
-		|	'int'
-		|	ID
-		;
-		
-statement	: 
-			'{' ( statement )* '}'
-		|	'if' '(' expr ')' statement 'else' statement
-		|	'while' '(' expr ')' statement
-		|	'System.out.println' '(' expr ')' ';'
-		|	ID '=' expr ';'
-		|	ID '[' expr ']' '=' expr ';'
-		;
-
-
-expr	:	
-			expr OP expr
-		|	expr '[' expr ']'
-		|	expr '.length'
-		|	expr '.' ID '(' ( expr ( ',' expr )* )? ')'
-		|	INT
-		|	'true'
-		|	'false'
-		|  ID
-		{
-		String var_name = $ID.text;
-		if(MinijavaParser.isKeyWord(var_name)) 
-		{
-			System.out.println("error: keyword: " +var_name + " is used as an ID "+ " at " +$ID.line + ":"+$ID.pos);
-		}		
-		}
-		|	'this'
-		|	'new' 'int' '[' expr ']'
-		|	'new' ID '(' ')'
-		|	'!' expr
-		|	'(' expr ')'
-		|	expr '<' expr
-		|	expr '>' expr
-		|	expr '<=' expr
-		|	expr '>=' expr
-		;
-		
 var_type:
 	array_type
 	|basic_type
@@ -185,38 +326,184 @@ basic_type:
 		
 array_type:
 	basic_type ('['']')+ 
-	
 	;	
+
+class_body_start:LEFT_BRACE
+	;
+	
+class_body_end:RIGHT_BRACE
+	;
+
 stat:
 	'{' (stat)* '}'
 	|'return' (expr)? ';'
 	|	'if' '(' expr ')' stat 'else' stat
 	|	'while' '(' expr ')' stat
 	|	'System.out.println' '(' expr ')' ';'
+	|	ID ASSIGN_OP expr ';'
 	{
 		//对辅助语句进行检查,左边的ID必须存在,并且和右边的表达式类型名一致
 	}
+	|	ID '[' expr ']' '=' expr ';'
+	{
+		
+	}
+	;		
+
+expr_list:
+	expr(',' expr)*
 	;
-EXTENDS:
-	'extends'
+
+expr returns [String type]:      //type记录表达式的类型名
+	'(' a=expr ')'
+	{
+		$type = $a.type;
+	}
+	|	a = expr '[' expr ']'
+	{
+		int L=$a.type.length();
+		$type = $a.type.substring(0,L-2);
+	}
+	|	a=expr '.' 'length'
+	{
+		$type = "int";
+	}
+	|   a=expr.ID '(' (expr_list)? ')'{
+		
+	}
+	|	'new' basic_type  array_decl   //多维数组定义
+	{
+		$type = $basic_type.text+$array_decl.text;
+	}  
+	|	'new' ID '(' ')'              //单变量定义
+	{
+		$type = $ID.text;
+	}
+	|	'!' a=expr
+	{
+		$type = "boolean";
+	}
+	| 	a=expr op=MUL_OP  b=expr
+	{
+		//检查两个操作数的类型是否都为int
+		if (!($a.type.equals("int"))){
+			System.out.println("type mismatched in arg1 of expression at line" +
+				$op.line + $op.pos
+			);
+		}
+		if (!($b.type.equals("int"))){
+			System.out.println("type mismatched in arg2 of expression at line" +
+				$op + $op.pos
+			);
+		}
+		$type = "int";
+	}
+	| 	a=expr op=ADD_OP b=expr
+	{
+		//检查两个操作数的类型是否都为int
+		if (!($a.type.equals("int"))){
+			System.out.println("type mismatched in arg1 of expression at line" +
+				$op.line + $op.pos
+			);
+		}
+		if (!($b.type.equals("int"))){
+			System.out.println("type mismatched in arg2 of expression at line" +
+				$op + $op.pos
+			);
+		}
+		$type = "int";
+	}
+	| 	a=expr op=RELATION_OP b=expr
+	{
+		//检查两个操作数的类型是否都为int
+		if (!($a.type.equals("int"))){
+			System.out.println("type mismatched in arg1 of expression at line" +
+				$op.line + $op.pos
+			);
+		}
+		if (!($b.type.equals("int"))){
+			System.out.println("type mismatched in arg2 of expression at line" +
+				$op + $op.pos
+			);
+		}
+		$type = "boolean";
+	}
+	| 	a=expr op=LOGIC_OP b=expr
+	{
+		
+		$type = "boolean";
+	}
+	|  INT
+	{
+		$type = "int";
+	}
+	|  ID
+	{
+		boolean found = false;
+		//检查ID是否存在
+		ParserRuleContext parent = $ctx.getParent();
+		while(!(parent instanceof Method_declContext)){
+			parent = parent.getParent();
+		}
+	}
+	|  'true'
+	{
+		$type = "boolean";
+	}
+	|  'false'
+	{
+		$type = "boolean";
+	}
+	|  'this'
+	{
+		//this对象的类型名是所在类的类名
+		//$type = "boolean";
+	}
 	;
-	
+
+array_decl:
+	('[expr]')+
+	;
+
+ASSIGN_OP:
+	 '+='|'-='|'*='|'/='
+	|'+'|'-'|'*'|'/'
+	;
+		
 SEMICOLON
 	: ';'
 	;
-
+		
+SL_COMMENT
+    : '//' .*?  '\n' -> skip  
+    ;
+    
 LEFT_BRACE:'{';    
 RIGHT_BRACE:'}';
 
 LEFT_PARA:'(';    
 RIGHT_PARA:')';
-		
+
+
+RELATION_OP:
+	'<'|'>'|'<='|'>='|'=='|'!='
+	;
+	
+LOGIC_OP:
+	'&&'|'||';
+
+ADD_OP :'+'|'-'
+	;
+
+MUL_OP	:'*'|'/'
+	;
+
+EXTENDS:
+	'extends'
+	;
 //lexical issues
 ID	:	[a-zA-Z_][a-zA-Z0-9_]*;	  		//identifier
 INT	:	[0-9]+;							// integer
-OP	:	'&&' | '<' | '+' | '-' | '*' ;	//binary_operator
-COMMENT_LINE:   '//' .*? '\n' ->skip ;	//comment_line
-COMMENT:   '/*' .*? '*/' ->skip ;		//comment
 WS  :   [ \t\r\n]+ -> skip ; 			// skip spaces, tabs, newlines
 
 
