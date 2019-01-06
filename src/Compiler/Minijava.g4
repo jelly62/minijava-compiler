@@ -8,6 +8,7 @@ grammar Minijava;
 @parser::members{
 	//error detections
 	//
+	public enum Scope{MEMBER,FUNC}; 
 	public static boolean isKeyWord(String id)
 	{
 		List<String> keys = new ArrayList<String>();
@@ -27,19 +28,44 @@ grammar Minijava;
 		
 	}
 }
-prog : mainClass  (classDeclaration)* EOF;
+//prog : mainClass  (classDeclaration)* EOF;
 
-mainClass : 		'class' ID 
-					'{' 'public' 'static' 'void' 'main' '(' 'String' '[' ']' ID ')'
-					'{' statement '}' 
-					'}'
-					;
+//mainClass : 		'class' ID 
+//					'{' 'public' 'static' 'void' 'main' '(' 'String' '[' ']' ID ')'
+//					'{' statement '}' 
+//					'}'
+//					;
 
-classDeclaration : 	'class' ID ( 'extends' ID )? '{' ( type ID )* ( methodDeclaration )* '}'
-					;
+//classDeclaration : 	'class' ID ( 'extends' ID )? '{' ( type ID )* ( methodDeclaration )* '}'
+//					;
 
 //varDeclaration	:	type ID ';'
 //					;
+prog
+:   (class_list += class_decl)+
+;
+class_decl
+locals[
+	String name    
+]
+/* List of symbols defined within this block */
+    : 
+    // 'class' class_name = ID ( EXTENDS ID ) ?
+    class_head_name 
+    '{'
+	  ( ('public'|'protected'|'private')? 
+	  	('static' var_list  += var_decl[true,MinijavaParser.Scope.MEMBER])
+	  	|
+	  	(var_list  += var_decl[false,MinijavaParser.Scope.MEMBER])
+	  	SEMICOLON
+	  )*
+	   (func_list += method_decl)*
+	'}'
+    ;
+    
+class_head_name:
+	'class' class_name = ID ( EXTENDS parent_name = ID ) ?
+	;    
 
 var_decl[boolean static_flag,MinijavaParser.Scope var_scope]
 locals
@@ -57,72 +83,49 @@ locals
 		$ctx.scope = $var_scope;
 		$ctx.is_static = $static_flag;
 		
-		ParserRuleContext parent = $ctx.getParent();
-		if (parent instanceof Class_declContext) {  //是类成员变量
-			Class_declContext c =(Class_declContext)(parent);
-			Var_declContext var = MinijavaParser.findVar(c,var_name);
-			
-			if (var != null && var.is_static == $static_flag){
-				System.out.println("var " + $ID.text + " is refined " + "at line " 
-					+ $ID.line + ":" + $ID.pos
-					);
-			}
-			else {
-				System.out.println("add new member var: " + $ctx.name + 
-					" in class " + c.name + " successful"
-				);
-			}
-		}
-		else if (parent instanceof Para_declContext)
-		{ 
-			//如果是函数参数定义
-			
-			//向上定位到函数父节点
-			while (!(parent instanceof Method_declContext) ){
-				parent = parent.getParent();
-			}
-						
-			Method_declContext c =(Method_declContext)parent;
-			
-			if (MinijavaParser.isParaExists(c,var_name))
-			{
-				System.out.println("para " + $ID.text+" in function" + c.name + " is refined " + "at line " 
-					+ $ID.line + ":" + $ID.pos
-					);
-			}
-			else {
-				System.out.println("add new par: " + $ctx.name +" in function " + c.name + " successful");
-			}	
-		}
-		
-		else if (parent instanceof Method_declContext){  
-			//如果是函数中的局部变量
-			Method_declContext c = (Method_declContext)parent;
-			
-			if (MinijavaParser.isVarExists(c,var_name))
-			{
-				System.out.println("var " + $ID.text +" in function" + c.name + " is refined " + "at line " 
-					+ $ID.line + ":" + $ID.pos
-				);
-			}
-			else if (MinijavaParser.isParaExists(c,var_name))
-			{
-				System.out.println("var " + $ID.text +" in function " + c.name 
-				 + " has same name with some para " + "at line "+ $ID.line + ":" + $ID.pos);
-			}
-			else 
-			{
-				System.out.println("add new var: " + $ctx.name 
-					+" in function " + c.name + " successful"
-				);
-			} 
-		}
 	}
 	;
+	
+method_decl
+locals[
+	String name;     //记录函数名
+	String type;  //记录返回类型名
+	boolean is_static //是否为静态方法
+]
+:
+	('public'|'protected'|'private')? (b='static')? 
+	func_head_name LEFT_PARA (para_list += para_decl (',' para_list += para_decl)*)? RIGHT_PARA
+	'{'
+	 (
+	 	('static' var_list += var_decl[true,MinijavaParser.Scope.FUNC] SEMICOLON)
+	 	|
+	 	(var_list += var_decl[false,MinijavaParser.Scope.FUNC] SEMICOLON) 
+	 )*
+	 (stat_list += stat)*
+	'}'
+	;
+	
+func_head_name:
+	func_type ID
+	{
+		//记录函数名和返回类型名
+		Method_declContext c =(Method_declContext)($ctx.getParent()); 
+		c.name = $ID.text;
+		c.type = $func_type.text;
+	}
+	;	
+	
+para_decl:
+	var=var_decl[false,MinijavaParser.Scope.FUNC]
+	#ParaDecl
+	;
 
-methodDeclaration :	'public' type ID '(' ( type ID ( ',' type ID )* )? ')' 
-					'{' ( type ID )* ( statement )* 'return' expr ';' '}'
-					;
+func_type:
+	'void'|var_type
+	;
+//methodDeclaration :	'public' type ID '(' ( type ID ( ',' type ID )* )? ')' 
+//					'{' ( type ID )* ( statement )* 'return' expr ';' '}'
+//					;
 
 
 type : 		
@@ -182,8 +185,32 @@ basic_type:
 		
 array_type:
 	basic_type ('['']')+ 
+	
 	;	
+stat:
+	'{' (stat)* '}'
+	|'return' (expr)? ';'
+	|	'if' '(' expr ')' stat 'else' stat
+	|	'while' '(' expr ')' stat
+	|	'System.out.println' '(' expr ')' ';'
+	{
+		//对辅助语句进行检查,左边的ID必须存在,并且和右边的表达式类型名一致
+	}
+	;
+EXTENDS:
+	'extends'
+	;
+	
+SEMICOLON
+	: ';'
+	;
 
+LEFT_BRACE:'{';    
+RIGHT_BRACE:'}';
+
+LEFT_PARA:'(';    
+RIGHT_PARA:')';
+		
 //lexical issues
 ID	:	[a-zA-Z_][a-zA-Z0-9_]*;	  		//identifier
 INT	:	[0-9]+;							// integer
