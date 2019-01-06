@@ -3,6 +3,9 @@
  */
 grammar Minijava;
 
+@parser::members{
+	//error detections
+}
 prog : mainClass  (classDeclaration)* EOF;
 
 mainClass : 		'class' ID 
