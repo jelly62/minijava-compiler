@@ -5,6 +5,7 @@ grammar Minijava;
 
 @parser::members{
 	//error detections
+	//
 }
 prog : mainClass  (classDeclaration)* EOF;
 
