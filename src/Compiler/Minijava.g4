@@ -2,10 +2,30 @@
  * Define a grammar called mini_java
  */
 grammar Minijava;
-
+@header{
+	import java.util.*;
+}
 @parser::members{
 	//error detections
 	//
+	public static boolean isKeyWord(String id)
+	{
+		List<String> keys = new ArrayList<String>();
+		keys.add("int");
+		keys.add("void");
+		keys.add("if");
+		keys.add("while");
+		keys.add("else");
+		keys.add("default");
+		keys.add("private");
+		keys.add("extends");
+		keys.add("class");
+		keys.add("return");
+		keys.add("true");
+		keys.add("false");
+		return keys.contains(id);
+		
+	}
 }
 prog : mainClass  (classDeclaration)* EOF;
 
@@ -24,10 +44,10 @@ varDeclaration	:	type ID ';'
 methodDeclaration :	'public' type ID '(' ( type ID ( ',' type ID )* )? ')' 
 					'{' ( varDeclaration )* ( statement )* 'return' expr ';' '}'
 					;
-		
+
+
 type : 		
-		'int' '[' ']''[' ']'
-		|   'int' '[' ']'
+		   'int' '[' ']'
 		|	'boolean'
 		|	'int'
 		|	ID
@@ -51,7 +71,14 @@ expr	:
 		|	INT
 		|	'true'
 		|	'false'
-		|	ID
+		|  ID
+		{
+		String var_name = $ID.text;
+		if(MinijavaParser.isKeyWord(var_name)) 
+		{
+			System.out.println("error: keword: " +var_name + " is used as an ID "+ " at " +$ID.line + ":"+$ID.pos);
+		}		
+		}
 		|	'this'
 		|	'new' 'int' '[' expr ']'
 		|	'new' ID '(' ')'
@@ -62,7 +89,7 @@ expr	:
 		|	expr '<=' expr
 		|	expr '>=' expr
 		;
-		
+
 
 //lexical issues
 ID	:	[a-zA-Z_][a-zA-Z0-9_]*;	  		//identifier
@@ -71,3 +98,5 @@ OP	:	'&&' | '<' | '+' | '-' | '*' ;	//binary_operator
 COMMENT_LINE:   '//' .*? '\n' ->skip ;	//comment_line
 COMMENT:   '/*' .*? '*/' ->skip ;		//comment
 WS  :   [ \t\r\n]+ -> skip ; 			// skip spaces, tabs, newlines
+
+
