@@ -37,7 +37,8 @@ statement	:
 		|	ID '=' expr ';'
 		|	ID '[' expr ']' '=' expr ';'
 		;
-		
+
+
 expr	:	
 			expr OP expr
 		|	expr '[' expr ']'
@@ -52,8 +53,13 @@ expr	:
 		|	'new' ID '(' ')'
 		|	'!' expr
 		|	'(' expr ')'
+		|	expr '<' expr
+		|	expr '>' expr
+		|	expr '<=' expr
+		|	expr '>=' expr
 		;
 		
+
 //lexical issues
 ID	:	[a-zA-Z_][a-zA-Z0-9_]*;	  		//identifier
 INT	:	[0-9]+;							// integer
